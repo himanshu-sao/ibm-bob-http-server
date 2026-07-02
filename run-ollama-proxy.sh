@@ -6,7 +6,7 @@ set -e
 
 echo "╔══════════════════════════════════════════════════════╗"
 echo "║         IBM BOB → Ollama/LM Studio HTTP Proxy               ║"
-echo "╚╚══════════════════════════════════════════════════════╝"
+echo "╚══════════════════════════════════════════════════════╝"
 echo ""
 
 # Configuration
@@ -14,15 +14,16 @@ PORT=31013
 SERVER_FILE="server.py"
 REQUIREMENTS_FILE="requirements-ollama.txt"
 
-# Check if Python 3.11+ is available
-if ! command -v python3.11 &>/dev/null && ! command -v python3 &>/dev/null; then
+# Python Version Preference: 3.14 -> 3.11 -> 3
+if command -v python3.14 &>/dev/null; then
+    PYTHON_CMD="python3.14"
+elif command -v python3.11 &>/dev/null; then
+    PYTHON_CMD="python3.11"
+elif command -v python3 &>/dev/null; then
+    PYTHON_CMD="python3"
+else
     echo "❌ Python 3.11+ is required but not found"
     exit 1
-fi
-
-PYTHON_CMD="python3"
-if python3.11 --version &>/dev/null; then
-    PYTHON_CMD="python3.11"
 fi
 
 echo "Using Python: $($PYTHON_CMD --version)"
@@ -32,21 +33,14 @@ if [ ! -d ".venv" ]; then
     echo "📦 Creating virtual environment..."
     $PYTHON_CMD -m venv .venv
     
-    # Activate and install
-    source .venv/bin/activate
+    # Use the venv python for installation
+    VENV_PYTHON=".venv/bin/python"
     echo "📦 Upgrading pip..."
-    pip install --upgrade pip >/dev/null 2>&1
+    $VENV_PYTHON -m pip install --upgrade pip >/dev/null 2>&1
     echo "📦 Installing required packages..."
-    pip install -r "$REQUIREMENTS_FILE" >/dev/null 2>&1
+    $VENV_PYTHON -m pip install -r "$REQUIREMENTS_FILE" >/dev/null 2>&1
 else
-    # Activate existing venv
-    source .venv/bin/activate
-fi
-
-# Verify fastapi is installed
-if ! python3 -c "import fastapi; import uvicorn" 2>/dev/null; then
-    echo "⚠️ Installing packages..."
-    pip install fastapi uvicorn python-multipart pydantic >/dev/null 2>&1
+    VENV_PYTHON=".venv/bin/python"
 fi
 
 # Check if BOB is available
@@ -88,8 +82,8 @@ LOG_DIR="logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/server.log"
 
-# Start the server in the background
-nohup $PYTHON_CMD "$SERVER_FILE" > "$LOG_FILE" 2>&1 &
+# Start the server using the Venv Python to ensure dependencies are loaded
+nohup $VENV_PYTHON "$SERVER_FILE" > "$LOG_FILE" 2>&1 &
 SERVER_PID=$!
 
 echo ""
